@@ -10,38 +10,71 @@ import math
 
 app = FastAPI()
 
+
 class ReceiveImage(BaseModel):
-    image:str
+    image_url: str
 
 
 @app.get('/')
 async def model_endpoint():
     return {"Hi there": "You reached the endpoint!"}
 
-@app.post('/')
-async def predit_depression(item:ReceiveImage):
-    image = preprocess_image(item.image)
-    model = tf.keras.models.load_model("model.tf")
-    all_prediction = model.predict(np.array([image]))
-    prediction = all_prediction[0]
-    print(prediction)
-    print(type(prediction))
-    print("")
-    print("The probability of depression is:")
 
-    if prediction[0]< 0.01:
-        print("<0.01")
-        return {"prediction":"<0.01"}
+@app.post('/predict')
+async def predict_depression(item: ReceiveImage):
+    image_url = item.image_url
+    image_data = get_image_data_from_url(image_url)
+    if image_data is not None:
+        image = preprocess_image(image_data)
+        model = tf.keras.models.load_model("model.tf")
+        all_prediction = model.predict(np.array([image]))
+        prediction = all_prediction[0]
+        print(prediction)
+        print(type(prediction))
+        print("")
+        print("The probability of depression is:")
+
+        if prediction[0] < 0.01:
+            print("<0.01")
+            return {"prediction": "<0.01"}
+        else:
+            print(prediction[0])
+            result = math.floor(prediction[0] * 100) / 100
+            return {"prediction": str(result)}
     else:
-        print(prediction[0])
-        result = math.floor(prediction[0] * 100) / 100
-        return {"prediction":str(result)}
-    
+        return {"error": "Failed to fetch image data"}
+
+
+def get_image_data_from_url(image_url):
+    # Here, you should implement code to fetch the image data from the provided URL.
+    # You can use libraries like requests to download the image data.
+    # For demonstration purposes, we'll use a placeholder function.
+    try:
+        # Placeholder function, replace with your actual image download logic
+        # Ensure you handle exceptions appropriately
+        image_data = fetch_image_data(image_url)
+        return image_data
+    except Exception as e:
+        print("Error fetching image data:", str(e))
+        return None
+
+
+def fetch_image_data(image_url):
+    # Placeholder function to fetch image data from the URL
+    # Replace this with your actual implementation using requests or other libraries
+    # Example: Using requests
+    import requests
+    response = requests.get(image_url)
+    if response.status_code == 200:
+        return response.content
+    else:
+        return None
+
 
 def preprocess_image(encoded_image):
-    
     # Load the face detection algorithm
-    face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+    face_cascade = cv2.CascadeClassifier(
+        cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
     # Decode the base64-encoded image data
     decoded_image_data = base64.b64decode(encoded_image)
@@ -49,7 +82,7 @@ def preprocess_image(encoded_image):
     image = Image.open(BytesIO(decoded_image_data))
     # Convert the image to a numpy array
     img_array = np.array(image)
-    
+
     # convert numpy array to PIL image
     image = Image.fromarray(img_array)
 
@@ -58,9 +91,10 @@ def preprocess_image(encoded_image):
 
     # convert grayscale image back to numpy array
     gray_image = np.array(grayscale_image)
-    
+
     # Detect the faces in the image
-    faces = face_cascade.detectMultiScale(gray_image, scaleFactor=1.3, minNeighbors=5)
+    faces = face_cascade.detectMultiScale(
+        gray_image, scaleFactor=1.3, minNeighbors=5)
     # Crop and replace the faces
     if len(faces) > 0:
         (x, y, w, h) = faces[0]
@@ -70,7 +104,7 @@ def preprocess_image(encoded_image):
     else:
         resized_image = cv2.resize(gray_image, (100, 100))
 
-    normalized_image = resized_image / 255.0    
+    normalized_image = resized_image / 255.0
     final_image = np.expand_dims(normalized_image, axis=-1)
 
     return final_image

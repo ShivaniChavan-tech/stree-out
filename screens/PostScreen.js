@@ -1,10 +1,18 @@
-import React, { useState } from 'react';
-import { Button, Image, View, Text, ScrollView, TouchableHighlight, StyleSheet } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import { getAuth } from 'firebase/auth';
-import { getStorage, ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { getFirestore, doc, updateDoc } from 'firebase/firestore';
-import { manipulateAsync } from 'expo-image-manipulator';
+import React, { useState } from "react";
+import {
+  Button,
+  Image,
+  View,
+  Text,
+  ScrollView,
+  TouchableHighlight,
+  StyleSheet,
+} from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { getAuth } from "firebase/auth";
+import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
+import { getFirestore, doc, updateDoc } from "firebase/firestore";
+import { manipulateAsync } from "expo-image-manipulator";
 
 const PostScreen = () => {
   // State to store the URI of the selected image
@@ -28,7 +36,7 @@ const PostScreen = () => {
       handleImagePickerResult(result);
     } catch (error) {
       console.error(error);
-      alert('An error occurred while picking the image.');
+      alert("An error occurred while picking the image.");
     }
   };
 
@@ -40,7 +48,7 @@ const PostScreen = () => {
       handleImagePickerResult(result);
     } catch (error) {
       console.error(error);
-      alert('An error occurred while taking the photo.');
+      alert("An error occurred while taking the photo.");
     }
   };
 
@@ -48,45 +56,51 @@ const PostScreen = () => {
   const handleUploadPress = async () => {
     // Check if an image has been selected
     if (!imageUri) {
-      alert('Please select an image to upload!');
+      alert("Please select an image to upload!");
       return;
     }
-  
+
     // Get the current user's ID and Firestore document reference
     const auth = getAuth();
     const storage = getStorage();
     const db = getFirestore();
     const userID = auth.currentUser.uid;
-    const userRef = doc(db, 'users', userID);
+    const userRef = doc(db, "users", userID);
 
     try {
       // Compress the image
-      const compressedImage = await manipulateAsync(imageUri, [{ resize: { width: 500 } }], {
-        compress: 0.5,
-        format: 'jpeg',
-        base64: false,
-      });
+      const compressedImage = await manipulateAsync(
+        imageUri,
+        [{ resize: { width: 500 } }],
+        {
+          compress: 0.5,
+          format: "jpeg",
+          base64: false,
+        }
+      );
       if (!compressedImage || !compressedImage.uri) {
-        alert('An error occurred while compressing the image.');
+        alert("An error occurred while compressing the image.");
         return;
       }
       const compressedImageUri = compressedImage.uri;
       if (!compressedImageUri) {
-        alert('An error occurred while compressing the image.');
+        alert("An error occurred while compressing the image.");
         return;
       }
 
       // Upload the image to Firebase Storage
       const response = await fetch(compressedImageUri);
       if (!response.ok) {
-        alert(`An error occurred while uploading the image: ${response.status}`);
+        alert(
+          `An error occurred while uploading the image: ${response.status}`
+        );
         return;
       }
       // This code block uses the response blob from an uploaded image to store it in Firebase Storage.
       const blob = await response.blob();
-      // It first extracts the file name from the compressedImageUri, 
-      //and then creates a reference to the Firebase Storage location where it will be stored. 
-      const filename = compressedImageUri.split('/').pop();
+      // It first extracts the file name from the compressedImageUri,
+      //and then creates a reference to the Firebase Storage location where it will be stored.
+      const filename = compressedImageUri.split("/").pop();
       const storageRef = ref(storage, `${userID}/${filename}`);
       // The uploadBytes function is then called with the storage reference and the blob as arguments,
       // causing the image to be uploaded to Firebase.
@@ -94,63 +108,89 @@ const PostScreen = () => {
 
       // Get the download URL of the uploaded image and store it in the user's Firestore document
       const downloadURL = await getDownloadURL(storageRef);
+
+      // Send the download URL to the API
+      const apiUrl = "http://127.0.0.1:8000"; // Replace with your API endpoint
+      try {
+        const response = await fetch(apiUrl, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ image_url: downloadURL }),
+        });
+
+        if (response.ok) {
+          // Handle the response from the API, e.g., show the prediction result
+          const predictionResult = await response.json();
+          console.log("Prediction Result:", predictionResult);
+          alert("Prediction Result: " + predictionResult.prediction);
+        } else {
+          alert("Failed to get prediction from the API");
+        }
+      } catch (error) {
+        console.error("Error sending image URL to API:", error);
+      }
+
       // This code uses the updateDoc function to store the downloadURL of an uploaded image in Firestore.
       await updateDoc(userRef, { downloadURL });
-      // If the URL is successfully stored, it logs a success message to the console, displays an alert to the user, 
-      console.log('Image URL stored in Firestore successfully!',downloadURL);
-      alert('Image uploaded successfully!');
-      // and resets the imageUri to null. If there is an error, it logs the error to the console and 
+      // If the URL is successfully stored, it logs a success message to the console, displays an alert to the user,
+      console.log("Image URL stored in Firestore successfully!", downloadURL);
+      alert("Image uploaded successfully!");
+      // and resets the imageUri to null. If there is an error, it logs the error to the console and
       setImageUri(null);
-    } 
-    // displays an error alert to the user.
-    catch (error) {
+    } catch (error) {
+      // displays an error alert to the user.
       console.error(error);
-      alert('An error occurred while uploading the image.');
-}
-
+      alert("An error occurred while uploading the image.");
+    }
   };
 
-   // Return JSX elements to draw UI
+  // Return JSX elements to draw UI
   return (
     <ScrollView contentContainerStyle={styles.container}>
       <View>
-      {imageUri && <Image source={{ uri: imageUri }} style={{ width: 300, height: 300, marginTop: 150}} />}
+        {imageUri && (
+          <Image
+            source={{ uri: imageUri }}
+            style={{ width: 300, height: 300, marginTop: 150 }}
+          />
+        )}
       </View>
       <View style={styles.buttonContainer}>
-          <TouchableHighlight 
-              onPress={() => { 
-                handleImagePickPress();
-              }}
-          >
-                  <View style={styles.button}> 
-                      <Text style={styles.buttonText}>Pick Image from Gallery</Text>
-                  </View>
-          </TouchableHighlight>
+        <TouchableHighlight
+          onPress={() => {
+            handleImagePickPress();
+          }}
+        >
+          <View style={styles.button}>
+            <Text style={styles.buttonText}>Pick Image from Gallery</Text>
+          </View>
+        </TouchableHighlight>
       </View>
       <View style={styles.buttonContainer}>
-          <TouchableHighlight 
-              onPress={() => { 
-                handleCameraPress();
-              }}
-          >
-                  <View style={styles.button}> 
-                      <Text style={styles.buttonText}>Take Photo with Camera</Text>
-                  </View>
-          </TouchableHighlight>
+        <TouchableHighlight
+          onPress={() => {
+            handleCameraPress();
+          }}
+        >
+          <View style={styles.button}>
+            <Text style={styles.buttonText}>Take Photo with Camera</Text>
+          </View>
+        </TouchableHighlight>
       </View>
       <View style={styles.buttonContainer}>
-          <TouchableHighlight 
-              onPress={() => { 
-                handleUploadPress();
-              }}
-          >
-                  <View style={styles.button}> 
-                      <Text style={styles.buttonText}>Upload</Text>
-                  </View>
-          </TouchableHighlight>
+        <TouchableHighlight
+          onPress={() => {
+            handleUploadPress();
+          }}
+        >
+          <View style={styles.button}>
+            <Text style={styles.buttonText}>Upload</Text>
+          </View>
+        </TouchableHighlight>
       </View>
-      </ScrollView>
-
+    </ScrollView>
   );
 };
 
@@ -159,29 +199,29 @@ export default PostScreen;
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     padding: 20,
     paddingBottom: 150,
-    backgroundColor: 'black'
-},
+    backgroundColor: "black",
+  },
   buttonContainer: {
     margin: 10,
-    alignItems: 'center',
+    alignItems: "center",
   },
   button: {
-    backgroundColor: '#ff8c00',
+    backgroundColor: "#ff8c00",
     height: 50,
     width: 300,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderRadius: 20,
     marginBottom: 20,
     marginTop: 20,
   },
   buttonText: {
-    color: 'white',
-    fontWeight: 'bold',
+    color: "white",
+    fontWeight: "bold",
     fontSize: 18,
   },
 });
