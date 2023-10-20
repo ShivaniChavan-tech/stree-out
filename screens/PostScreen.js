@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Button,
   Image,
@@ -13,11 +13,32 @@ import { getAuth } from "firebase/auth";
 import { getStorage, ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { getFirestore, doc, updateDoc } from "firebase/firestore";
 import { manipulateAsync } from "expo-image-manipulator";
+import * as Permissions from "expo-permissions";
 
 const PostScreen = () => {
   // State to store the URI of the selected image
   const [imageUri, setImageUri] = useState(null);
+  useEffect(() => {
+    // Function to request camera and camera roll permissions
+    const getPermissions = async () => {
+      const cameraPermission = await Permissions.askAsync(Permissions.CAMERA);
+      const cameraRollPermission = await Permissions.askAsync(
+        Permissions.CAMERA_ROLL
+      );
 
+      if (
+        cameraPermission.status !== "granted" ||
+        cameraRollPermission.status !== "granted"
+      ) {
+        alert(
+          "Sorry, we need camera and camera roll permissions to make this work!"
+        );
+      }
+    };
+
+    // Call the function when the component is mounted
+    getPermissions();
+  }, []);
   // Handler for when an image is picked from the gallery or taken from the camera
   const handleImagePickerResult = (result) => {
     if (!result.canceled) {
@@ -108,30 +129,6 @@ const PostScreen = () => {
 
       // Get the download URL of the uploaded image and store it in the user's Firestore document
       const downloadURL = await getDownloadURL(storageRef);
-
-      // Send the download URL to the API
-      const apiUrl = "http://127.0.0.1:8000"; // Replace with your API endpoint
-      try {
-        const response = await fetch(apiUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ image_url: downloadURL }),
-        });
-
-        if (response.ok) {
-          // Handle the response from the API, e.g., show the prediction result
-          const predictionResult = await response.json();
-          console.log("Prediction Result:", predictionResult);
-          alert("Prediction Result: " + predictionResult.prediction);
-        } else {
-          alert("Failed to get prediction from the API");
-        }
-      } catch (error) {
-        console.error("Error sending image URL to API:", error);
-      }
-
       // This code uses the updateDoc function to store the downloadURL of an uploaded image in Firestore.
       await updateDoc(userRef, { downloadURL });
       // If the URL is successfully stored, it logs a success message to the console, displays an alert to the user,
